@@ -3,6 +3,7 @@ import { Request, Response, NextFunction, Router } from 'express';
 import { UserService } from '../modules/services/user.service';
 import { requireAuth, AuthRequest } from '../middlewares/auth.middleware';
 import { avatarUpload } from '../middlewares/avatarUpload.middleware';
+import { config } from '../config';
 
 
 class UserController implements Controller {
@@ -176,8 +177,8 @@ class UserController implements Controller {
         return res.status(400).json({ error: 'Brak pliku' });
       }
 
-      const avatarUrl = `http://localhost:3100/uploads/avatars/${file.filename}`;
-      const result = await this.userService.updateAvatar(userId, avatarUrl);
+        const avatarUrl = `${config.baseUrl}/uploads/avatars/${file.filename}`;
+        const result = await this.userService.updateAvatar(userId, avatarUrl);
 
       return res.status(200).json(result);
     } catch {

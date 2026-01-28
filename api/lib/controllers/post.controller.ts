@@ -6,6 +6,8 @@ import { postImageUpload } from '../middlewares/postImageUpload.middleware';
 
 import Post from '../modules/schemas/post.schema';
 import User from '../modules/schemas/user.schema';
+import { config } from '../config';
+
 
 class PostController implements Controller {
   public path = '/api/posts';
@@ -97,9 +99,9 @@ class PostController implements Controller {
       return res.status(400).json({ error: 'Wymagane pole: image (plik)' });
     }
 
-    const imageUrl = `http://localhost:3100/uploads/posts/${file.filename}`;
+      const imageUrl = `${config.baseUrl}/uploads/posts/${file.filename}`;
 
-    const created = await Post.create({
+      const created = await Post.create({
       title,
       text,
       image: imageUrl,
