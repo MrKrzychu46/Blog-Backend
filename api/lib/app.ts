@@ -21,11 +21,21 @@ class App {
    }
 
     private initializeMiddlewares(): void {
+        const allowedOrigins = [
+            'http://localhost:4200',
+            'https://blog-frontend-TWOJ.onrender.com', // <-- tu URL FRONT
+        ];
+
         this.app.use(cors({
-            origin: 'http://localhost:4200',
+            origin: (origin, cb) => {
+                // brak origin = np. curl/postman
+                if (!origin) return cb(null, true);
+                if (allowedOrigins.includes(origin)) return cb(null, true);
+                return cb(new Error(`CORS blocked for origin: ${origin}`));
+            },
             credentials: true,
             methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-            allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
+            allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
         }));
 
         this.app.options('*', cors());
@@ -33,6 +43,7 @@ class App {
         this.app.use(bodyParser.json());
         this.app.use(requestLogger);
     }
+
 
 
     private async connectToDatabase(): Promise<void> {
