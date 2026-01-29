@@ -13,7 +13,7 @@ export async function sendVerificationEmail(to: string, link: string) {
       <div style="font-family:Arial,sans-serif;line-height:1.5">
         <h2>Aktywacja konta</h2>
         <p>Kliknij w link, aby aktywować konto:</p>
-        <a href="${link}"></a>
+        <p><a href="${link}"></a></p>
         <p>Jeśli to nie Ty – zignoruj tę wiadomość.</p>
       </div>
     `,
