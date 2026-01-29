@@ -3,6 +3,7 @@ import { Response, NextFunction, Router, Request } from 'express';
 import { checkPostCount } from "../middlewares/checkPostCount.middleware";
 import { requireAuth, AuthRequest } from '../middlewares/auth.middleware';
 import { postImageUpload } from '../middlewares/postImageUpload.middleware';
+import Rating from '../modules/schemas/rating.schema';
 
 import Post from '../modules/schemas/post.schema';
 import User from '../modules/schemas/user.schema';
@@ -42,18 +43,74 @@ class PostController implements Controller {
     this.router.delete(`${this.path}/:id`, requireAuth, this.deleteById);
   }
 
-  private getAll = async (_req: Request, res: Response) => {
-    const posts = await Post.find().sort({ createdAt: -1 }).lean();
-    res.status(200).json(posts);
-  };
+    private getAll = async (_req: Request, res: Response) => {
+        const posts = await Post.find().sort({ createdAt: -1 }).lean();
 
-  private getMyPosts = async (req: AuthRequest, res: Response) => {
-    const userId = req.user!.userId;
-    const posts = await Post.find({ authorId: userId }).sort({ createdAt: -1 }).lean();
-    res.status(200).json(posts);
-  };
+        const postIds = posts.map(p => (p as any)._id);
 
-  private getById = async (req: Request, res: Response) => {
+        const stats = await Rating.aggregate([
+            { $match: { postId: { $in: postIds } } },
+            {
+                $group: {
+                    _id: '$postId',
+                    avg: { $avg: '$value' },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const statsMap = new Map<string, { avg: number; count: number }>();
+        stats.forEach(s => statsMap.set(String(s._id), { avg: s.avg, count: s.count }));
+
+        const enriched = posts.map(p => {
+            const id = String((p as any)._id);
+            const st = statsMap.get(id);
+            return {
+                ...p,
+                averageRating: st ? st.avg : 0,
+                votesCount: st ? st.count : 0
+            };
+        });
+
+        res.status(200).json(enriched);
+    };
+
+
+    private getMyPosts = async (req: AuthRequest, res: Response) => {
+        const userId = req.user!.userId;
+
+        const posts = await Post.find({ authorId: userId }).sort({ createdAt: -1 }).lean();
+        const postIds = posts.map(p => (p as any)._id);
+
+        const stats = await Rating.aggregate([
+            { $match: { postId: { $in: postIds } } },
+            {
+                $group: {
+                    _id: '$postId',
+                    avg: { $avg: '$value' },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const statsMap = new Map<string, { avg: number; count: number }>();
+        stats.forEach(s => statsMap.set(String(s._id), { avg: s.avg, count: s.count }));
+
+        const enriched = posts.map(p => {
+            const id = String((p as any)._id);
+            const st = statsMap.get(id);
+            return {
+                ...p,
+                averageRating: st ? st.avg : 0,
+                votesCount: st ? st.count : 0
+            };
+        });
+
+        res.status(200).json(enriched);
+    };
+
+
+    private getById = async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const post = await Post.findById(id).lean();
@@ -130,15 +187,42 @@ class PostController implements Controller {
     res.status(200).json({ ok: true });
   };
 
-  private getN = async (req: Request, res: Response) => {
-    const num = Number(req.params.num);
-    if (isNaN(num) || num <= 0) {
-      return res.status(400).json({ error: 'Parametr N musi być dodatnią liczbą całkowitą.' });
-    }
+    private getN = async (req: Request, res: Response) => {
+        const num = Number(req.params.num);
+        if (isNaN(num) || num <= 0) {
+            return res.status(400).json({ error: 'Parametr N musi być dodatnią liczbą całkowitą.' });
+        }
 
-    const posts = await Post.find().sort({ createdAt: -1 }).limit(num).lean();
-    res.status(200).json(posts);
-  };
+        const posts = await Post.find().sort({ createdAt: -1 }).limit(num).lean();
+        const postIds = posts.map(p => (p as any)._id);
+
+        const stats = await Rating.aggregate([
+            { $match: { postId: { $in: postIds } } },
+            {
+                $group: {
+                    _id: '$postId',
+                    avg: { $avg: '$value' },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const statsMap = new Map<string, { avg: number; count: number }>();
+        stats.forEach(s => statsMap.set(String(s._id), { avg: s.avg, count: s.count }));
+
+        const enriched = posts.map(p => {
+            const id = String((p as any)._id);
+            const st = statsMap.get(id);
+            return {
+                ...p,
+                averageRating: st ? st.avg : 0,
+                votesCount: st ? st.count : 0
+            };
+        });
+
+        res.status(200).json(enriched);
+    };
+
 }
 
 export default PostController;

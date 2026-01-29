@@ -1,6 +1,8 @@
 import Controller from '../interfaces/controller.interface';
 import { Router, Response } from 'express';
 import { requireAuth, AuthRequest } from '../middlewares/auth.middleware';
+import mongoose from 'mongoose';
+
 
 import Rating from '../modules/schemas/rating.schema';
 import Post from '../modules/schemas/post.schema';
@@ -35,15 +37,10 @@ class RatingController implements Controller {
         const mine = await Rating.findOne({ userId, postId }).lean();
         const myRating = mine ? (mine as any).value : 0;
 
-        // średnia i liczba głosów (z całej bazy)
-        const agg = await Rating.aggregate([
-            { $match: { postId: (await Post.findById(postId).select('_id').lean())?._id } }
-        ]);
-
         // ^ powyżej byłoby za trudne i niepotrzebne.
         // Zrobimy prostszą i poprawną agregację:
         const stats = await Rating.aggregate([
-            { $match: { postId: new (require('mongoose').Types.ObjectId)(postId) } },
+            { $match: { postId: new mongoose.Types.ObjectId(postId) } },
             {
                 $group: {
                     _id: '$postId',
@@ -84,7 +81,7 @@ class RatingController implements Controller {
 
         // po zapisie zwróć od razu nowe statystyki (żeby frontend nie musiał robić 2 requestów)
         const stats = await Rating.aggregate([
-            { $match: { postId: new (require('mongoose').Types.ObjectId)(postId) } },
+            { $match: { postId: new mongoose.Types.ObjectId(postId) } },
             {
                 $group: {
                     _id: '$postId',
