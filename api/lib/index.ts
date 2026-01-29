@@ -3,6 +3,8 @@ import PostController from './controllers/post.controller';
 import Controller from './interfaces/controller.interface';
 import UserController from './controllers/user.controller';
 import FavoritesController from './controllers/favorites.controller';
+import RatingController from './controllers/rating.controller';
+
 
 /**
  * Główny punkt startowy aplikacji.
@@ -12,7 +14,8 @@ function main() {
     const controllers: Controller[] = [
         new PostController(),
         new UserController(),
-        new FavoritesController()
+        new FavoritesController(),
+        new RatingController()
     ];
 
 
