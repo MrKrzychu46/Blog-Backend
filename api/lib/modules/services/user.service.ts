@@ -147,6 +147,10 @@ export class UserService {
 
         // 1) Pobierz wszystkie posty usera (żeby znać obrazki)
         const myPosts = await Post.find({ authorId: userId }).lean();
+        const postIds = myPosts.map(p => (p as any)._id);
+        await Rating.deleteMany({ postId: { $in: postIds } });
+        await Favorite.deleteMany({ postId: { $in: postIds } });
+
 
         // 2) Usuń pliki obrazków postów
         for (const p of myPosts) {
