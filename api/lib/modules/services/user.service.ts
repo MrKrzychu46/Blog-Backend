@@ -8,6 +8,8 @@ import path from 'path';
 import Post from '../schemas/post.schema';
 import Rating from '../schemas/rating.schema';
 import Favorite from '../schemas/favorite.schema';
+import crypto from 'crypto';
+import { sendVerificationEmail } from './mail.service';
 
 import { getUploadsRootDir } from '../../utils/uploadsDir';
 
@@ -62,7 +64,23 @@ export class UserService {
       avatarUrl: defaultAvatar(data.gender)
     });
 
-    return {
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const expires = new Date(Date.now() + 1000 * 60 * 60); // 1h
+
+      await User.findByIdAndUpdate(created._id, {
+          verifyTokenHash: tokenHash,
+          verifyTokenExpiresAt: expires,
+          isVerified: false
+      });
+
+      const frontUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+      const verifyLink = `${frontUrl}/verify?token=${rawToken}`;
+
+      await sendVerificationEmail(created.email, verifyLink);
+
+
+      return {
       userId: created._id.toString(),
       email: created.email,
       firstName: created.firstName,
@@ -80,7 +98,10 @@ export class UserService {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new Error('INVALID_CREDENTIALS');
 
-    const secret: jwt.Secret = String(config.jwtSecret);
+    if (!(user as any).isVerified) throw new Error('NOT_VERIFIED');
+
+
+      const secret: jwt.Secret = String(config.jwtSecret);
     const signOptions: jwt.SignOptions = { expiresIn: String(config.jwtExpiresIn) as any };
 
     const token = jwt.sign(
@@ -191,6 +212,23 @@ export class UserService {
         // 6) Usuń usera
         await User.findByIdAndDelete(userId);
     }
+
+    async verifyAccount(token: string) {
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+        const user = await User.findOne({
+            verifyTokenHash: tokenHash,
+            verifyTokenExpiresAt: { $gt: new Date() }
+        });
+
+        if (!user) throw new Error('INVALID_TOKEN');
+
+        (user as any).isVerified = true;
+        (user as any).verifyTokenHash = null;
+        (user as any).verifyTokenExpiresAt = null;
+        await user.save();
+    }
+
 
 
     async logout(_userId: string) {

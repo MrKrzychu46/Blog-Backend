@@ -15,7 +15,11 @@ const userSchema = new mongoose.Schema(
     },
 
     // domyślny avatar, później user go zmieni po zalogowaniu
-    avatarUrl: { type: String, required: true }
+    avatarUrl: { type: String, required: true },
+    //rejestracja 2 etapowa
+    isVerified: { type: Boolean, required: true, default: false },
+    verifyTokenHash: { type: String, default: null },
+    verifyTokenExpiresAt: { type: Date, default: null },
   },
   {
     timestamps: true // ✅ doda createdAt i updatedAt automatycznie

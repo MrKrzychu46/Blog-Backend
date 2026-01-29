@@ -30,6 +30,9 @@ class UserController implements Controller {
         this.router.put(`${this.path}/me/password`, requireAuth, this.changePassword);
         this.router.delete(`${this.path}/me`, requireAuth, this.deleteMe);
 
+        this.router.get(`${this.path}/verify`, this.verify);
+
+
         this.router.post(
           `${this.path}/me/avatar`,
           requireAuth,
@@ -81,12 +84,18 @@ class UserController implements Controller {
         return res.status(400).json({ error: 'Wymagane pola: email/login oraz password' });
       }
 
-      const result = await this.userService.authenticate(String(emailValue), String(password));
+
+        const result = await this.userService.authenticate(String(emailValue), String(password));
       return res.status(200).json(result);
     } catch (e: any) {
       if (e?.message === 'INVALID_CREDENTIALS') {
         return res.status(401).json({ error: 'Nieprawidłowy login/email lub hasło' });
       }
+
+      if (e?.message === 'NOT_VERIFIED') {
+          return res.status(403).json({ error: 'Konto nieaktywne. Sprawdź e-mail i kliknij link aktywacyjny.' });
+      }
+
       return res.status(500).json({ error: 'Błąd serwera' });
     }
   };
@@ -185,6 +194,19 @@ class UserController implements Controller {
       return res.status(400).json({ error: 'Nie udało się wgrać avatara' });
     }
   };
+
+    private verify = async (req: Request, res: Response) => {
+        try {
+            const token = String(req.query.token ?? '');
+            if (!token) return res.status(400).json({ error: 'Brak tokena' });
+
+            await this.userService.verifyAccount(token);
+            return res.status(200).json({ ok: true });
+        } catch {
+            return res.status(400).json({ error: 'Link aktywacyjny jest nieprawidłowy lub wygasł' });
+        }
+    };
+
 
 
 }
