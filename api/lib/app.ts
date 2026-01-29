@@ -8,13 +8,14 @@ import Controller from "./interfaces/controller.interface";
 import mongoose from 'mongoose';
 import { requestLogger } from './middlewares/logger.middleware';
 import cors from 'cors';
+import { getUploadsRootDir } from './utils/uploadsDir';
 
 class App {
    public app: express.Application;
 
    constructor(controllers: Controller[]) {
        this.app = express();
-       this.app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+       this.app.use('/uploads', express.static(getUploadsRootDir()));
        this.initializeMiddlewares();
        this.initializeControllers(controllers);
        this.connectToDatabase();

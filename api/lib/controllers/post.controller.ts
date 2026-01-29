@@ -4,10 +4,15 @@ import { checkPostCount } from "../middlewares/checkPostCount.middleware";
 import { requireAuth, AuthRequest } from '../middlewares/auth.middleware';
 import { postImageUpload } from '../middlewares/postImageUpload.middleware';
 import Rating from '../modules/schemas/rating.schema';
+import Favorite from '../modules/schemas/favorite.schema';
+import { getUploadsRootDir } from '../utils/uploadsDir';
+
 
 import Post from '../modules/schemas/post.schema';
 import User from '../modules/schemas/user.schema';
 import { config } from '../config';
+import fs from 'fs';
+import path from 'path';
 
 
 class PostController implements Controller {
@@ -39,8 +44,14 @@ class PostController implements Controller {
       this.addPost
     );
 
-    // Usunięcie posta po ID (na razie bez sprawdzania autora — można dodać później)
+    // Edytowanie posta po ID
+    this.router.put(`${this.path}/:id`, requireAuth, this.updateById);
+
+
+    // Usunięcie posta po ID
     this.router.delete(`${this.path}/:id`, requireAuth, this.deleteById);
+
+
   }
 
     private getAll = async (_req: Request, res: Response) => {
@@ -170,22 +181,46 @@ class PostController implements Controller {
     res.status(201).json(saved);
   };
 
-  private deleteById = async (req: AuthRequest, res: Response) => {
-    const { id } = req.params;
+    private deleteById = async (req: AuthRequest, res: Response) => {
+        const userId = req.user!.userId;
+        const { id } = req.params;
 
-    const post = await Post.findById(id);
-    if (!post) {
-      return res.status(404).json({ error: `Nie znaleziono posta o id: ${id}` });
-    }
+        const post = await Post.findById(id);
+        if (!post) {
+            return res.status(404).json({ error: `Nie znaleziono posta o id: ${id}` });
+        }
 
-    // (opcjonalnie) tylko autor może usuwać:
-    // if (post.authorId.toString() !== req.user!.userId) {
-    //   return res.status(403).json({ error: 'Brak uprawnień' });
-    // }
+        if (post.authorId.toString() !== userId) {
+            return res.status(403).json({ error: 'Brak uprawnień (tylko autor może usuwać)' });
+        }
 
-    await Post.findByIdAndDelete(id);
-    res.status(200).json({ ok: true });
-  };
+        // 1) usuń plik obrazka (jeśli istnieje)
+        try {
+            const imageUrl = String((post as any).image ?? '');
+            if (imageUrl) {
+                // wyciągamy samą nazwę pliku z URL-a
+                // np. https://.../uploads/posts/abc.png -> abc.png
+                const filename = path.basename(new URL(imageUrl).pathname);
+                const filePath = path.join(getUploadsRootDir(), 'posts', filename);
+
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+            }
+        } catch {
+            // nie blokuj usuwania posta, jeśli kasowanie pliku się nie uda
+        }
+
+        // 2) usuń powiązane dane
+        await Rating.deleteMany({ postId: id });
+        await Favorite.deleteMany({ postId: id });
+
+        // 3) usuń post z bazy
+        await Post.findByIdAndDelete(id);
+        return res.status(200).json({ ok: true });
+
+    };
+
 
     private getN = async (req: Request, res: Response) => {
         const num = Number(req.params.num);
@@ -222,6 +257,35 @@ class PostController implements Controller {
 
         res.status(200).json(enriched);
     };
+
+    private updateById = async (req: AuthRequest, res: Response) => {
+        const userId = req.user!.userId;
+        const { id } = req.params;
+
+        const title = String(req.body?.title ?? '').trim();
+        const text = String(req.body?.text ?? '').trim();
+
+        if (!title || !text) {
+            return res.status(400).json({ error: 'Wymagane pola: title, text' });
+        }
+
+        const post = await Post.findById(id);
+        if (!post) {
+            return res.status(404).json({ error: `Nie znaleziono posta o id: ${id}` });
+        }
+
+        if (post.authorId.toString() !== userId) {
+            return res.status(403).json({ error: 'Brak uprawnień (tylko autor może edytować)' });
+        }
+
+        post.title = title;
+        post.text = text;
+        await post.save();
+
+        const saved = await Post.findById(post._id).lean();
+        return res.status(200).json(saved);
+    };
+
 
 }
 

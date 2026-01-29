@@ -1,8 +1,10 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { getUploadsRootDir } from '../utils/uploadsDir'
 
-const dir = path.join(process.cwd(), 'uploads', 'posts');
+
+const dir = path.join(getUploadsRootDir(), 'posts');
 fs.mkdirSync(dir, { recursive: true });
 
 const storage = multer.diskStorage({

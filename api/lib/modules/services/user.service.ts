@@ -2,14 +2,23 @@ import bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import User from '../schemas/user.schema';
 import { config } from '../../config';
+import fs from 'fs';
+import path from 'path';
+
+import Post from '../schemas/post.schema';
+import Rating from '../schemas/rating.schema';
+import Favorite from '../schemas/favorite.schema';
+
+import { getUploadsRootDir } from '../../utils/uploadsDir';
+
 
 type Gender = 'male' | 'female' | 'other';
 
 function defaultAvatar(gender: Gender): string {
   // ✅ możesz dać później lokalne assety / linki
-  if (gender === 'male') return 'https://api.dicebear.com/7.x/thumbs/svg?seed=male';
-  if (gender === 'female') return 'https://api.dicebear.com/7.x/thumbs/svg?seed=female';
-  return 'https://api.dicebear.com/7.x/thumbs/svg?seed=other';
+  if (gender === 'male') return 'https://api.dicebear.com/7.x/personas/svg?seed=Michael-24&size=256&radius=50&backgroundColor=eef2ff&facialHairProbability=100';
+  if (gender === 'female') return 'https://api.dicebear.com/7.x/personas/svg?seed=Sophia-24&size=256&radius=50&backgroundColor=eef2ff&facialHairProbability=0';
+  return 'https://api.dicebear.com/7.x/personas/svg?seed=Alex-24&size=256&radius=50&backgroundColor=eef2ff&facialHairProbability=20';
 }
 
 export class UserService {
@@ -129,17 +138,58 @@ export class UserService {
     await user.save();
   }
 
-  async deleteAccount(userId: string, password: string) {
-    const user = await User.findById(userId);
-    if (!user) throw new Error('NOT_FOUND');
+    async deleteAccount(userId: string, password: string) {
+        const user = await User.findById(userId);
+        if (!user) throw new Error('NOT_FOUND');
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) throw new Error('INVALID_PASSWORD');
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        if (!ok) throw new Error('INVALID_PASSWORD');
 
-    await User.findByIdAndDelete(userId);
-  }
+        // 1) Pobierz wszystkie posty usera (żeby znać obrazki)
+        const myPosts = await Post.find({ authorId: userId }).lean();
 
-  async logout(_userId: string) {
+        // 2) Usuń pliki obrazków postów
+        for (const p of myPosts) {
+            try {
+                const imageUrl = String((p as any).image ?? '');
+                if (!imageUrl) continue;
+
+                // wyciągamy nazwę pliku z URL-a
+                const filename = path.basename(new URL(imageUrl).pathname);
+                const filePath = path.join(getUploadsRootDir(), 'posts', filename);
+
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            } catch {
+                // nie blokujemy usuwania konta przez problem z jednym plikiem
+            }
+        }
+
+        // 3) Usuń avatar z dysku (TYLKO jeśli jest z naszego /uploads/avatars/)
+        try {
+            const avatarUrl = String((user as any).avatarUrl ?? '');
+
+            // usuwamy tylko avatary hostowane u nas
+            if (avatarUrl.includes('/uploads/avatars/')) {
+                const filename = path.basename(new URL(avatarUrl).pathname);
+                const filePath = path.join(getUploadsRootDir(), 'avatars', filename);
+
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            }
+        } catch {}
+
+        // 4) Usuń dane powiązane w bazie
+        await Rating.deleteMany({ userId });
+        await Favorite.deleteMany({ userId });
+
+        // 5) Usuń posty usera
+        await Post.deleteMany({ authorId: userId });
+
+        // 6) Usuń usera
+        await User.findByIdAndDelete(userId);
+    }
+
+
+    async logout(_userId: string) {
     return { ok: true };
   }
 }
