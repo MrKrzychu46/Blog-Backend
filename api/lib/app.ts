@@ -23,8 +23,10 @@ class App {
 
     private initializeMiddlewares(): void {
         const allowedOrigins = [
-            'http://localhost:4200',
-            'https://blog-frontend-TWOJ.onrender.com', // <-- tu URL FRONT
+            'http://localhost:4200',              // local dev
+            'https://kuchblog.pl',                // apex (jeśli ktoś wejdzie bez www)
+            'https://www.kuchblog.pl',            // PROD – główna domena
+            'https://blog-murex-delta-27.vercel.app' // adres z Vercela
         ];
 
         this.app.use(cors({
