@@ -29,9 +29,8 @@ class App {
             'https://blog-murex-delta-27.vercel.app' // adres z Vercela
         ];
 
-        this.app.use(cors({
+        const corsOptions: cors.CorsOptions = {
             origin: (origin, cb) => {
-                // brak origin = np. curl/postman
                 if (!origin) return cb(null, true);
                 if (allowedOrigins.includes(origin)) return cb(null, true);
                 return cb(new Error(`CORS blocked for origin: ${origin}`));
@@ -39,7 +38,11 @@ class App {
             credentials: true,
             methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
             allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
-        }));
+        };
+
+        this.app.use(cors(corsOptions));
+        this.app.options('*', cors(corsOptions));
+
 
         this.app.options('*', cors());
 
